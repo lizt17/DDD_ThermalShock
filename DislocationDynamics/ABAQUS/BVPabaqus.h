@@ -494,6 +494,13 @@ namespace model
             return tempM;
         }
 
+        /**********************************************************************/
+        double temperature(const Eigen::Matrix<double,dim,1> P,
+                           const Simplex<dim,dim>* guess) const
+        {
+            return eval(Tem)(P,guess);
+        }
+
         // 2021-4-2, lizt
         void  findElementSet(const std::vector<VectorDim>& Point, const VectorDim& faceNormal)
         {

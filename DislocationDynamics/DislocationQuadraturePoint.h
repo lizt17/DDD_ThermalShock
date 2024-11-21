@@ -122,12 +122,12 @@ namespace model
         }
         
         /**********************************************************************/
+        // copy for backup, argumments exclude temperature
         template<typename LinkType>
         static VectorDim  getGlideVelocity(const LinkType& parentSegment,
                                            const VectorDim& r,
                                            const VectorDim& fPK,
                                            const MatrixDim& S,
-                                           const MatrixDim& TEM,
                                            const VectorDim& rl,
                                            const double& dL
                                            )
@@ -201,6 +201,87 @@ namespace model
             }
             
         }
+
+        /**********************************************************************/
+        template<typename LinkType>
+        static VectorDim  getGlideVelocity(const LinkType& parentSegment,
+                                           const VectorDim& r,
+                                           const VectorDim& fPK,
+                                           const MatrixDim& S,
+                                           const VectorDim& rl,
+                                           const double& dL,
+                                           const double _tem
+                                           )
+        {
+            if(parentSegment.slipSystem())
+            {
+                
+                VectorDim n(parentSegment.glidePlaneNormal()); // plane normal
+                VectorDim b(parentSegment.burgers()); // Burgers vector
+                VectorDim t(rl);            // tangent vector
+                
+                // Select right-handed normal whenever possible
+                if(parentSegment.loopLinks().size()==1)
+                {// pick right-handed normal for n
+                    const typename LinkType::LoopLinkType& loopLink(**parentSegment.loopLinks().begin());
+                    if(std::fabs(loopLink.loop()->slippedArea())>FLT_EPSILON)
+                    {
+                        if(parentSegment.source->sID!=loopLink.source()->sID)
+                        {// NetworkLink and LoopLink are oriented in opposite direction
+                            b*=-1.0;
+                            t*=-1.0;
+                        }
+                    }
+                }
+                
+                VectorDim glideForce = fPK-fPK.dot(n)*n;
+                double glideForceNorm(glideForce.norm());
+                
+                if(glideForceNorm<FLT_EPSILON && parentSegment.network().use_stochasticForce)
+                {
+                    glideForce=parentSegment.chord().cross(n);
+                    glideForceNorm=glideForce.norm();
+                    if(glideForceNorm>FLT_EPSILON)
+                    {
+                        glideForce/=glideForceNorm;
+                    }
+                }
+                
+                VectorDim vv=VectorDim::Zero();
+                if(glideForceNorm>FLT_EPSILON)
+                {
+                    
+//                    double v =parentSegment.network().poly.mobility->velocity(S,b,t,n,
+                      double v =parentSegment.slipSystem()->mobility->velocity(S,b,t,n,
+                                                                              _tem,
+                                                                              dL,parentSegment.network().simulationParameters.dt,parentSegment.network().use_stochasticForce);
+                    assert((parentSegment.network().use_stochasticForce || v>= 0.0) && "Velocity must be a positive scalar");
+                    const bool useNonLinearVelocity=false;
+                    if(useNonLinearVelocity && v>FLT_EPSILON)
+                    {
+                        v= 1.0-std::exp(-v);
+                    }
+                    
+                    for(const auto& inclusion : parentSegment.network().eshelbyInclusions() )
+                    {// Add EshelbyInclusions stress
+                        if(inclusion.second.contains(r))
+                        {
+                            v*=inclusion.second.mobilityReduction;
+                        }
+                    }
+                    
+                    
+                    vv= v * glideForce/glideForceNorm;
+                }
+                return vv;
+
+            }
+            else
+            {
+                return VectorDim::Zero();
+            }
+            
+        }
         
 //        /**********************************************************************/
 //        std::set<const EshelbyInclusion<dim>*> getInclusions(const std::map<size_t,EshelbyInclusion<dim>>& inclusionContainer,
@@ -217,13 +298,21 @@ namespace model
 //            return temp;
 //        }
         
-        
         /**********************************************************************/
         template<typename LinkType>
         void updateForcesAndVelocities(const LinkType& parentSegment)
         {
             pkForce=(stress*parentSegment.burgers()).cross(rl);
-            glideVelocity=getGlideVelocity(parentSegment,r,pkForce,stress,rl,dL);
+            glideVelocity=getGlideVelocity(parentSegment,r,pkForce,stress,rl,dL); 
+        }
+        
+        /**********************************************************************/
+        // add a overload, which takes a temperature as an argument
+        template<typename LinkType>
+        void updateForcesAndVelocities(const LinkType& parentSegment, const double& _tem)
+        {
+            pkForce=(stress*parentSegment.burgers()).cross(rl);
+            glideVelocity=getGlideVelocity(parentSegment,r,pkForce,stress,rl,dL,_tem);  // this function may be called by every quadrature point
         }
     };
     
@@ -368,7 +457,9 @@ namespace model
                     {// Add stress of externalLoadController
                         qPoint.stress += parentSegment.network().externalLoadController->stress(qPoint.r);
                     } */
-                    
+                    bool isConstantTemperature(false);  // TODO: can be selected in the input file
+                    double localTem = isConstantTemperature? 300.0 : parentSegment.network().bvpAbaqus->temperature(qPoint.r,parentSegment.source->includingSimplex());
+                    // To be optimized: stress and temperature can be found in a same function, avoid researching the simplex
                     if(parentSegment.network().bvpAbaqus)
                     {// Add BVP stress
                         qPoint.stress += parentSegment.network().bvpAbaqus->stress(qPoint.r,parentSegment.source->includingSimplex());
@@ -387,7 +478,14 @@ namespace model
                         }
                     }
                     
-                    qPoint.updateForcesAndVelocities(parentSegment);
+                    if(isConstantTemperature)
+                    {
+                        qPoint.updateForcesAndVelocities(parentSegment);
+                    }
+                    else
+                    {
+                        qPoint.updateForcesAndVelocities(parentSegment,localTem);
+                    }
                 }
             }
         }
