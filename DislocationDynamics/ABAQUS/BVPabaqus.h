@@ -62,7 +62,7 @@ namespace model
 
         typedef TrialFunction<'u',dim,FiniteElementType> TrialFunctionType;
         typedef TrialFunction<'s',6,FiniteElementType> StressTrialType;
-        typedef TrialFunction<'t',1,FiniteElementType> TemTrialType;    // trial function for temperture
+        typedef TrialFunction<'c',1,FiniteElementType> TemTrialType;    // trial function for temperture
 
         constexpr static int dofPerNode=TrialFunctionType::dofPerNode;
         typedef TrialGrad<TrialFunctionType> TrialGradType;
@@ -168,7 +168,7 @@ namespace model
         /* init  */,fe(mesh)        
         /* init  */,u(fe.template trial<'u',dim>())
         /* init  */,s(fe.template trial<'s', 6 >())
-        /* init  */,Tem(fe.template trial<'t', 1>())
+        /* init  */,Tem(fe.template trial<'c', 1>())
         /* init  */,IDmap(fe)
                 //luosc//
         /* init  */,epsilon(TextFileParser("./inputFiles/DD.txt").readScalar<double>("epsilon",true))  
@@ -187,9 +187,9 @@ namespace model
             stressV = Eigen::VectorXd::Zero(nodeSize*6);
             TemV = Eigen::VectorXd::Zero(nodeSize);
             stressAbaqus = Eigen::Matrix<double,Eigen::Dynamic,6>::Zero(nodeSize,6);
-            TemAbaqus = Eigen::Matrix<double,Eigen::Dynamic,6>::Zero(nodeSize,1);        
+            TemAbaqus = Eigen::Matrix<double,Eigen::Dynamic,1>::Zero(nodeSize,1);        
             stressIntAba = Eigen::Matrix<double,Eigen::Dynamic,6>::Zero(elementSize,6);    
-            TemIntAba = Eigen::Matrix<double,Eigen::Dynamic,6>::Zero(elementSize,1);    
+            TemIntAba = Eigen::Matrix<double,Eigen::Dynamic,1>::Zero(elementSize,1);    
             integralPoints = Eigen::Matrix<double,Eigen::Dynamic,dim>::Zero(elementSize,dim);    
             
 
@@ -498,7 +498,8 @@ namespace model
         double temperature(const Eigen::Matrix<double,dim,1> P,
                            const Simplex<dim,dim>* guess) const
         {
-            return eval(Tem)(P,guess);
+            Eigen::Matrix<double,1,1> tempT(eval(Tem)(P,guess));
+            return tempT(0);
         }
 
         // 2021-4-2, lizt

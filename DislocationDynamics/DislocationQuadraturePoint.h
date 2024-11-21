@@ -48,7 +48,7 @@ namespace model
         const double dL;                            // line length corresponding to this quadrature point
         
         MatrixDim stress;
-        const double Tem;
+        // const double Tem;
         VectorDim pkForce;
         VectorDim glideVelocity;
         
@@ -90,7 +90,7 @@ namespace model
         /* init */,dL(0.0)
         /* init */,stress(MatrixDim::Zero())
         /* init */,pkForce(VectorDim::Zero())
-        /* init */,v(VectorDim::Zero())
+        /* init */,glideVelocity(VectorDim::Zero())
         {
             
         }
