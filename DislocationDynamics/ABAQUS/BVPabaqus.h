@@ -62,7 +62,7 @@ namespace model
 
         typedef TrialFunction<'u',dim,FiniteElementType> TrialFunctionType;
         typedef TrialFunction<'s',6,FiniteElementType> StressTrialType;
-        typedef TrialFunction<'Tem',6,FiniteElementType> TemTrialType;
+        typedef TrialFunction<'t',1,FiniteElementType> TemTrialType;    // trial function for temperture
 
         constexpr static int dofPerNode=TrialFunctionType::dofPerNode;
         typedef TrialGrad<TrialFunctionType> TrialGradType;
@@ -138,9 +138,9 @@ namespace model
 
     public:
         Eigen::Matrix<double,Eigen::Dynamic,6> stressAbaqus; 
-        Eigen::Matrix<double,Eigen::Dynamic,6> TemAbaqus; 
+        Eigen::Matrix<double,Eigen::Dynamic,1> TemAbaqus; 
         Eigen::Matrix<double,Eigen::Dynamic,6> stressIntAba;    // intrgral point stress in ABAQUS
-        Eigen::Matrix<double,Eigen::Dynamic,6> TemIntAba;   
+        Eigen::Matrix<double,Eigen::Dynamic,1> TemIntAba;   
         Eigen::VectorXd stressV;                                // voigt stress in all node
         Eigen::VectorXd TemV;
         Eigen::Matrix<double,Eigen::Dynamic,dim> integralPoints;
@@ -168,6 +168,7 @@ namespace model
         /* init  */,fe(mesh)        
         /* init  */,u(fe.template trial<'u',dim>())
         /* init  */,s(fe.template trial<'s', 6 >())
+        /* init  */,Tem(fe.template trial<'t', 1>())
         /* init  */,IDmap(fe)
                 //luosc//
         /* init  */,epsilon(TextFileParser("./inputFiles/DD.txt").readScalar<double>("epsilon",true))  
@@ -184,11 +185,11 @@ namespace model
             elementSize = TrialBase<TrialFunctionType>::elementSize()/6;    // element size for C3D8
             
             stressV = Eigen::VectorXd::Zero(nodeSize*6);
-            TemV = Eigen::VectorXd::Zero(nodeSize*6);
+            TemV = Eigen::VectorXd::Zero(nodeSize);
             stressAbaqus = Eigen::Matrix<double,Eigen::Dynamic,6>::Zero(nodeSize,6);
-            TemAbaqus = Eigen::Matrix<double,Eigen::Dynamic,6>::Zero(nodeSize,6);        
+            TemAbaqus = Eigen::Matrix<double,Eigen::Dynamic,6>::Zero(nodeSize,1);        
             stressIntAba = Eigen::Matrix<double,Eigen::Dynamic,6>::Zero(elementSize,6);    
-            TemIntAba = Eigen::Matrix<double,Eigen::Dynamic,6>::Zero(elementSize,6);    
+            TemIntAba = Eigen::Matrix<double,Eigen::Dynamic,6>::Zero(elementSize,1);    
             integralPoints = Eigen::Matrix<double,Eigen::Dynamic,dim>::Zero(elementSize,dim);    
             
 
@@ -312,7 +313,7 @@ namespace model
             {
                 std::getline(openFileT,line);
                 std::stringstream tt(line);
-                for (size_t i = 0; i < 6; i++)
+                for (size_t i = 0; i < 1; i++)
                 {
                     tt>>TemIntAba(id,i);
                 }
@@ -322,7 +323,7 @@ namespace model
             model::cout<<" , done ! "<<std::flush;
             model::cout<<magentaColor<<std::setprecision(3)<<std::scientific<<" ["<<(clock()-t0)/CLOCKS_PER_SEC<<" sec]."<<defaultColor<<std::endl;
             // const std::map<int,std::vector<int>> list(IDmap.NodeEleList);
-            TemAbaqus = Eigen::Matrix<double,Eigen::Dynamic,6>::Zero(nodeSize,6);    
+            TemAbaqus = Eigen::Matrix<double,Eigen::Dynamic,6>::Zero(nodeSize,1);    
             model::cout<<"				clear nodal Tem ABAQUS ... "<<std::flush;
             const auto t1= std::chrono::system_clock::now(); 
             auto list(IDmap.NodeEleList());
